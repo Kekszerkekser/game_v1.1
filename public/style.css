@@ -140,6 +140,7 @@ body {
 .score-display { text-align: center; }
 .score-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
 .score-value { font-size: 1.3rem; font-weight: 700; color: var(--accent-glow); }
+.score-alltime { display: block; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.1rem; }
 
 .player-name { color: var(--text-dim); font-size: 0.9rem; display: flex; align-items: center; gap: 0.3rem; }
 .prestige-rank-icon { font-size: 1rem; cursor: default; }
@@ -438,10 +439,31 @@ body {
   background: rgba(120, 80, 0, 0.25);
   border: 1px solid #6a5010;
   border-radius: 4px;
-  padding: 0.15rem 0.4rem;
-  margin-bottom: 0.3rem;
-  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
+.upgraded-badge {
+  color: #60c060;
+  background: rgba(0, 80, 20, 0.25);
+  border-color: #2a6a30;
+}
+.upgrade-btn {
+  padding: 0.15rem 0.45rem;
+  background: #4a3800;
+  color: #f0c040;
+  border: 1px solid #6a5010;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+.upgrade-btn:hover:not(:disabled) { background: #7a5a10; }
+.upgrade-btn.dim, .upgrade-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .building-card.cant-afford { opacity: 0.6; }
 .building-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem; }
 .building-name { font-size: 0.88rem; font-weight: 600; }

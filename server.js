@@ -143,7 +143,7 @@ app.post('/api/register', async (req, res) => {
       lvl: 1, age: 0, score: 0, clicks: 0,
       res: { food: 0, wood: 0, stone: 100, bronze: 0, iron: 0, gold: 0, faith: 0, culture: 0, science: 0, art: 0, coal: 0, steel: 0, goods: 0, oil: 0, electricity: 0, tech: 0, credits: 0, fuel: 0, alloys: 0 },
       bld: { camp: 0, lumbermill: 0, quarry: 0, bronzemine: 0, tradingpost: 0, ironforge: 0, barracks: 0, treasury: 0, cathedral: 0, library: 0, academy: 0, studio: 0, coalmine: 0, steelmill: 0, factory: 0, oilrig: 0, powerplant: 0, techlab: 0, spaceport: 0, fueldepot: 0, alloyfoundry: 0 },
-      clickPowers: [1, 0.5, 0.25],
+      clickPowers: [2, 1, 0.5],
       clicksBySlot: [0, 0, 0],
       weeklyBaseScore: 0,
       weeklyStartTs: 0,

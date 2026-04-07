@@ -1,3 +1,14 @@
+//score wird auf 0 gesetzt wenn prestige. wär cooler wenn alter score da stehen bleibt. Neuen score evtl wo anders einbauen?
+//-> wenn geändert leaderboard anpassen
+//global und weekly trennen in notion. führt schnell zu verwirrung
+//clicken wird nicht belohnt. Entweder mengen erhöhen welche man bekommt oder öfter level upen
+//Level ups mehr belohnen. zb x2 auf alle prod + clicks 
+//warum veraltet? dann sollte man alte Gebäude verbessern können, das diese wieder "normal" produzieren
+//prestige stärker belohnen. nur die Letzten 3 stufen "schwer" machen
+//boni von artefacts und quests mit einberechnen bei den Clicks und der produktion
+//offline fortschritt "freischalten" indem man gebäude x kaufen muss
+//nanobanana für bilder
+
 'use strict';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -7,9 +18,9 @@ const AUTOSAVE_MS = 60_000;
 
 // Click slots: unlocked at N total buildings, each uses a different res from the current age
 const CLICK_SLOTS = [
-  { unlockBuildings: 0,  basePower: 1,    resIdx: 0, icon: '👆', label: 'Sammeln' },
-  { unlockBuildings: 10, basePower: 0.5,  resIdx: 1, icon: '⛏️', label: 'Sammeln' },
-  { unlockBuildings: 25, basePower: 0.25, resIdx: 2, icon: '🏗️', label: 'Sammeln' },
+  { unlockBuildings: 0,  basePower: 2,   resIdx: 0, icon: '👆', label: 'Sammeln' },
+  { unlockBuildings: 10, basePower: 1,   resIdx: 1, icon: '⛏️', label: 'Sammeln' },
+  { unlockBuildings: 25, basePower: 0.5, resIdx: 2, icon: '🏗️', label: 'Sammeln' },
 ];
 
 const AGES = [
@@ -898,9 +909,10 @@ let state = {
   lvl: 1,
   age: 0,
   score: 0,
+  allTimeScore: 0,           // cumulative score across all prestige runs
   clicks: 0,
-  clickPower: 1,             // kept for backward compat (= clickPowers[0])
-  clickPowers: [1, 0.5, 0.25],
+  clickPower: 2,             // kept for backward compat (= clickPowers[0])
+  clickPowers: [2, 1, 0.5],
   clicksBySlot: [0, 0, 0],
   achievements: {},
   weeklyBaseScore: 0,
@@ -909,6 +921,7 @@ let state = {
   prestige: 0,  // accumulated prestige points
   res: Object.fromEntries(Object.keys(RESOURCES).map(k => [k, 0])),
   bld: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
+  upgradedBlds: {},          // buildings upgraded to remove deprecation penalty
   missions: {},
   characters: {},
   artifacts: {},
@@ -1027,6 +1040,33 @@ function getTotalBuildings() {
   return Object.values(state.bld).reduce((a, b) => a + b, 0);
 }
 
+// Cost to upgrade a deprecated building to full production (uses current age resources)
+function getUpgradeCost(bld) {
+  const count = Math.max(1, state.bld[bld.id] || 0);
+  const currentAgeRes = RES_BY_AGE[state.age] || RES_BY_AGE[0];
+  const base = Math.floor(300 * Math.pow(2, bld.unlockAge) * Math.sqrt(count));
+  const costs = {};
+  if (currentAgeRes[0]) costs[currentAgeRes[0]] = base;
+  if (currentAgeRes[1]) costs[currentAgeRes[1]] = Math.floor(base * 0.5);
+  return costs;
+}
+
+function upgradeBuilding(id) {
+  const bld = BUILDINGS.find(b => b.id === id);
+  if (!bld || !isDeprecated(bld)) return;
+  if (state.upgradedBlds && state.upgradedBlds[id]) return; // already upgraded
+  const cost = getUpgradeCost(bld);
+  if (!canAfford(cost)) { notify('Nicht genug Ressourcen für das Upgrade!', 'error'); return; }
+  for (const [res, amt] of Object.entries(cost)) {
+    state.res[res] = (state.res[res] || 0) - amt;
+  }
+  if (!state.upgradedBlds) state.upgradedBlds = {};
+  state.upgradedBlds[id] = true;
+  playSound('upgrade');
+  notify(`🔧 ${bld.icon} ${bld.name} upgraded — produziert wieder 100%!`, 'success');
+  renderBuildings();
+}
+
 // Returns Monday 00:00:00 of the current week as a timestamp
 function getWeekStart() {
   const now = new Date();
@@ -1138,10 +1178,22 @@ function canAfford(costs) {
 }
 
 function prestigeMultiplier() {
-  // Each prestige point adds 5% production bonus (diminishing: log scale)
+  // Each prestige adds a production bonus (stronger early, log-scaling)
+  const p = state.prestige || 0;
+  if (p === 0) return 1;
+  return 1 + 0.15 * Math.log2(p + 1);
+}
+
+function prestigeClickMultiplier() {
+  // Each prestige adds a click bonus
   const p = state.prestige || 0;
   if (p === 0) return 1;
   return 1 + 0.05 * Math.log2(p + 1);
+}
+
+function getLevelMultiplier() {
+  // +2% production & click bonus per level above 1
+  return 1 + 0.02 * (state.lvl - 1);
 }
 
 const DEPRECATION_FACTOR = 0.2; // buildings from a previous age produce at 20%
@@ -1152,11 +1204,12 @@ function isDeprecated(bld) {
 
 function getTotalProduction() {
   const prod = Object.fromEntries(Object.keys(RESOURCES).map(k => [k, 0]));
-  const mult = prestigeMultiplier() * getAchievementBonuses().prodMult * getCharacterBonuses().prodMult * getArtifactBonuses().prodMult * (activeEvent?.prodMult || 1);
+  const mult = prestigeMultiplier() * getLevelMultiplier() * getAchievementBonuses().prodMult * getCharacterBonuses().prodMult * getArtifactBonuses().prodMult * (activeEvent?.prodMult || 1);
   for (const bld of BUILDINGS) {
     const count = state.bld[bld.id] || 0;
     if (count === 0) continue;
-    const ageMult = isDeprecated(bld) ? DEPRECATION_FACTOR : 1;
+    const isUpgraded = state.upgradedBlds && state.upgradedBlds[bld.id];
+    const ageMult = (isDeprecated(bld) && !isUpgraded) ? DEPRECATION_FACTOR : 1;
     for (const [res, rate] of Object.entries(bld.baseProd)) {
       prod[res] += rate * count * mult * ageMult;
     }
@@ -1204,6 +1257,8 @@ function tick() {
 function offlineProgress(savedTs) {
   const elapsed = Math.min((Date.now() - new Date(savedTs).getTime()) / 1000, (settings.offlineCapHours || 8) * 3600);
   if (elapsed < 10) return;
+  // Offline progress requires at least one building
+  if (getTotalBuildings() < 1) return;
   const prod = getTotalProduction();
   let scoreGain = 0;
   for (const [res, rate] of Object.entries(prod)) {
@@ -1363,7 +1418,7 @@ function renderLevelProgress() {
   document.getElementById('levelup-cost').textContent = `Costs: ${costStr}`;
 }
 
-const PRESTIGE_MIN_LEVEL = 5; // minimum level required to prestige
+const PRESTIGE_MIN_LEVEL = 3; // minimum level required to prestige
 
 function renderPrestige() {
   const p = state.prestige || 0;
@@ -1438,14 +1493,17 @@ function doPrestige() {
   const weeklyStartTs = state.weeklyStartTs;
   const characters = state.characters; // quest completions survive prestige
   const artifacts  = state.artifacts;  // artifact unlocks survive prestige
+  const allTimeScore = (state.allTimeScore || 0) + state.score;
+  const upgradedBlds = state.upgradedBlds; // upgrades survive prestige
 
   // Full reset
   state.lvl = 1;
   state.age = 0;
   state.score = 0;
+  state.allTimeScore = allTimeScore;
   state.clicks = 0;
-  state.clickPower = 1;
-  state.clickPowers = [1, 0.5, 0.25];
+  state.clickPower = 2;
+  state.clickPowers = [2, 1, 0.5];
   state.clicksBySlot = [0, 0, 0];
   state.gatherAge = 0;
   state.prestige = p;
@@ -1456,6 +1514,7 @@ function doPrestige() {
   state.weeklyStartTs = weeklyStartTs;
   state.characters = characters;
   state.artifacts  = artifacts;
+  state.upgradedBlds = upgradedBlds;
   // Reset scoreSnapshot so score-gain missions track from 0 after prestige
   if (state.missions?.scoreSnapshot !== undefined) state.missions.scoreSnapshot = 0;
   incrementMission('prestige', 1);
@@ -1567,12 +1626,26 @@ function renderBuildings() {
         }
 
         const deprecated = !locked && isDeprecated(bld);
-        html += `<div class="building-card ${locked ? 'locked' : ''} ${deprecated ? 'deprecated' : ''}">
+        const isUpgraded = deprecated && state.upgradedBlds && state.upgradedBlds[bld.id];
+        let deprecatedHtml = '';
+        if (deprecated) {
+          if (isUpgraded) {
+            deprecatedHtml = `<div class="deprecated-badge upgraded-badge">✅ Modernisiert — 100% Produktion</div>`;
+          } else {
+            const upgCost = getUpgradeCost(bld);
+            const upgCostStr = Object.entries(upgCost).map(([r, v]) => `${fmt(v)} ${RESOURCES[r]?.icon || ''}`).join(' + ');
+            const canUpg = canAfford(upgCost);
+            deprecatedHtml = `<div class="deprecated-badge">⚠️ Veraltet — nur ${Math.round(DEPRECATION_FACTOR * 100)}% Produktion
+              <button class="upgrade-btn${canUpg ? '' : ' dim'}" onclick="upgradeBuilding('${bld.id}')" ${canUpg ? '' : 'disabled'} title="Kosten: ${upgCostStr}">🔧 Modernisieren (${upgCostStr})</button>
+            </div>`;
+          }
+        }
+        html += `<div class="building-card ${locked ? 'locked' : ''} ${deprecated && !isUpgraded ? 'deprecated' : ''}">
           <div class="building-header">
             <span class="building-name">${bld.icon} ${bld.name}</span>
             <span class="building-count">${count}</span>
           </div>
-          ${deprecated ? `<div class="deprecated-badge">⚠️ Veraltet — nur ${Math.round(DEPRECATION_FACTOR * 100)}% Produktion</div>` : ''}
+          ${deprecatedHtml}
           <div class="building-desc">${bld.desc}</div>
           <div class="building-cost">${locked ? `🔒 Freischaltbar: ${AGES[bld.unlockAge].icon} ${AGES[bld.unlockAge].name}` : `Cost: ${costStr}`}</div>
           ${actionsHtml}
@@ -1596,6 +1669,11 @@ function toggleBldGroup(id) {
 
 function updateTopBar() {
   document.getElementById('total-score').textContent = fmt(state.score);
+  const allTimeEl = document.getElementById('all-time-score');
+  if (allTimeEl) {
+    const allTime = (state.allTimeScore || 0) + state.score;
+    allTimeEl.textContent = allTime > state.score ? `Gesamt: ${fmt(allTime)}` : '';
+  }
   const rank = getPrestigeRank(state.prestige || 0);
   const nameEl = document.getElementById('player-name');
   nameEl.innerHTML = `<span class="prestige-rank-icon" title="${rank.label} (Prestige ${state.prestige || 0})">${rank.icon}</span>${username || ''}`;
@@ -1633,15 +1711,19 @@ function renderClickButtons() {
     return clickLevelInfo(state.clicksBySlot[slotIdx] || 0);
   }
 
+  // Pre-compute shared multipliers (same for all slots)
+  const bonusMult = prestigeClickMultiplier() * getLevelMultiplier() * getAchievementBonuses().clickMult * getCharacterBonuses().clickMult * getArtifactBonuses().clickMult * (activeEvent?.clickMult || 1);
+
   // Slot 0: primary large button
   const s0 = CLICK_SLOTS[0];
   const res0 = RESOURCES[clickRes[0]];
-  const power0 = state.clickPowers[0] || s0.basePower;
+  const base0 = state.clickPowers[0] || s0.basePower;
+  const eff0 = base0 * bonusMult;
   const u0 = upgInfo(0);
   let html = `<button class="click-btn" data-slot="0">
     <span class="click-icon">${res0?.icon || '👆'}</span>
     <span class="click-label">${s0.label} ${res0?.name || ''}</span>
-    <span class="click-power">+${fmtFraction(power0)} ${res0?.name || ''}</span>
+    <span class="click-power">+${fmtFraction(eff0)} ${res0?.name || ''}</span>
     <span class="click-upg-row"><span class="click-upg-lvl">Lvl ${u0.lvl}</span><span class="click-upg-next">⬆ ${u0.toNext}</span></span>
   </button>
   <div class="click-btns-row">`;
@@ -1651,14 +1733,15 @@ function renderClickButtons() {
     const resKey = clickRes[i];
     const res = resKey ? RESOURCES[resKey] : null;
     const locked = totalBld < slot.unlockBuildings;
-    const power = state.clickPowers[i] || slot.basePower;
+    const baseP = state.clickPowers[i] || slot.basePower;
+    const effP = baseP * bonusMult;
     const ui = upgInfo(i);
     html += `<button class="click-btn-secondary${locked ? ' slot-locked' : ''}" data-slot="${i}"${locked ? ' disabled' : ''}>
       <span class="click-icon">${locked ? '🔒' : (res?.icon || '⛏️')}</span>
       <span class="click-label">${locked ? slot.unlockBuildings + ' Geb.' : slot.label + ' ' + (res?.name || '')}</span>
       ${locked
         ? `<span class="slot-unlock-hint">bei ${slot.unlockBuildings} Gebäuden</span>`
-        : `<span class="click-power">+${fmtFraction(power)} ${res?.name || ''}</span>
+        : `<span class="click-power">+${fmtFraction(effP)} ${res?.name || ''}</span>
            <span class="click-upg-row"><span class="click-upg-lvl">Lvl ${ui.lvl}</span><span class="click-upg-next">⬆ ${ui.toNext}</span></span>`
       }
     </button>`;
@@ -1676,7 +1759,7 @@ function doClick(e, slotIdx = 0) {
   if (!resKey) return;
 
   const basePower = state.clickPowers[slotIdx] !== undefined ? state.clickPowers[slotIdx] : slot.basePower;
-  const power = basePower * getAchievementBonuses().clickMult * getCharacterBonuses().clickMult * getArtifactBonuses().clickMult * (activeEvent?.clickMult || 1);
+  const power = basePower * prestigeClickMultiplier() * getLevelMultiplier() * getAchievementBonuses().clickMult * getCharacterBonuses().clickMult * getArtifactBonuses().clickMult * (activeEvent?.clickMult || 1);
   state.res[resKey] = (state.res[resKey] || 0) + power;
   state.score += power;
   state.clicks++;
@@ -1697,7 +1780,7 @@ function doClick(e, slotIdx = 0) {
   // Per-slot click power upgrade on level-up
   const { lvl: newLvl, toNext } = clickLevelInfo(state.clicksBySlot[slotIdx]);
   if (newLvl > prevLvl) {
-    state.clickPowers[slotIdx] = +(state.clickPowers[slotIdx] * 1.1).toFixed(4);
+    state.clickPowers[slotIdx] = +(state.clickPowers[slotIdx] * 1.2).toFixed(4);
     state.clickPower = state.clickPowers[0]; // keep compat field in sync
     renderClickButtons();
     playSound('upgrade');
@@ -2311,6 +2394,7 @@ function doLevelUp() {
 function stateToJson() {
   return JSON.stringify({
     lvl: state.lvl, age: state.age, score: state.score,
+    allTimeScore: state.allTimeScore || 0,
     clicks: state.clicks, clickPower: state.clickPowers[0],
     clickPowers: state.clickPowers, clicksBySlot: state.clicksBySlot,
     achievements: state.achievements,
@@ -2319,6 +2403,7 @@ function stateToJson() {
     missions: state.missions,
     characters: state.characters,
     artifacts: state.artifacts,
+    upgradedBlds: state.upgradedBlds || {},
     res: state.res, bld: state.bld, ts: new Date().toISOString(),
   });
 }
@@ -2329,7 +2414,7 @@ function loadStateFromJson(json) {
     if (!s || typeof s.lvl !== 'number') return false;
     Object.assign(state, s);
     // Backwards-compat defaults for new fields
-    if (!state.clickPowers) state.clickPowers = [state.clickPower || 1, 0.5, 0.25];
+    if (!state.clickPowers) state.clickPowers = [state.clickPower || 2, 1, 0.5];
     if (!state.clicksBySlot) state.clicksBySlot = [state.clicks || 0, 0, 0];
     if (!state.achievements) state.achievements = {};
     if (state.weeklyBaseScore === undefined) state.weeklyBaseScore = state.score;
@@ -2339,6 +2424,8 @@ function loadStateFromJson(json) {
     if (!state.missions) state.missions = {};
     if (!state.characters) state.characters = {};
     if (!state.artifacts) state.artifacts = {};
+    if (!state.upgradedBlds) state.upgradedBlds = {};
+    if (state.allTimeScore === undefined) state.allTimeScore = state.score;
     return true;
   } catch { return false; }
 }
@@ -2388,15 +2475,16 @@ async function submitWeeklySilent() {
   } catch {}
 }
 
-// Silently submits current score to the Global leaderboard
+// Silently submits current all-time score to the Global leaderboard
 async function submitScoreSilent() {
   if (!token) return;
-  if (state.score <= 0) return; // never overwrite leaderboard with 0 after prestige
+  const globalScore = (state.allTimeScore || 0) + state.score;
+  if (globalScore <= 0) return;
   try {
     await fetch(`${API}/leaderboard/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ score: prestigeNormalizedScore(state.score), ageReached: state.age, eventName: 'Global' }),
+      body: JSON.stringify({ score: prestigeNormalizedScore(globalScore), ageReached: state.age, eventName: 'Global' }),
     });
   } catch {}
 }
