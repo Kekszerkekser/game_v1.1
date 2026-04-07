@@ -7,9 +7,11 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(PUBLIC_DIR));
 
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,

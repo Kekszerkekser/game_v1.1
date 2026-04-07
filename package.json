@@ -2,6 +2,7 @@
   "name": "ages-of-civilization",
   "version": "1.0.0",
   "description": "Ages of Civilization – Idle Game",
+  "type": "commonjs",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

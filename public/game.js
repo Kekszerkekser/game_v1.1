@@ -1,7 +1,7 @@
 'use strict';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const API = 'http://localhost:3000/api';
+const API = '/api';
 const TICK_MS = 200; // game update every 200ms
 const AUTOSAVE_MS = 60_000;
 
