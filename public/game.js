@@ -1251,6 +1251,7 @@ function tick() {
   if (tickCount % 5 === 0) updateMissionsBtn();    // every 1s (score_gain check)
   if (tickCount % 5 === 0) checkCharacters();      // every 1s
   if (tickCount % 5 === 0) checkArtifacts();       // every 1s
+  if (tickCount % 5 === 0) renderClickButtons();   // every 1s (keeps effective power display in sync)
   tickEvents();
   checkAchievements();
 }
