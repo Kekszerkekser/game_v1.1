@@ -8,6 +8,7 @@
 //boni von artefacts und quests mit einberechnen bei den Clicks und der produktion
 //offline fortschritt "freischalten" indem man gebäude x kaufen muss
 //nanobanana für bilder
+//test
 
 'use strict';
 // ── Constants ─────────────────────────────────────────────────────────────────
