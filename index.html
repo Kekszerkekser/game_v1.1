@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ages of Civilization</title>
+  <meta name="theme-color" content="#c4953a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AoC">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-age="0">
+
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen" class="screen active">
+    <div class="auth-container">
+      <div class="auth-logo">
+        <div class="auth-icon">⚔️</div>
+        <h1>Ages of Civilization</h1>
+        <p class="auth-tagline">Begin your journey through time</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="tab-btn active" data-tab="login">Login</button>
+        <button class="tab-btn" data-tab="register">Register</button>
+      </div>
+
+      <form id="login-form" class="auth-form active">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="login-username" placeholder="Your username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="Your password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn-primary">Enter the World</button>
+        <p class="auth-error" id="login-error"></p>
+      </form>
+
+      <form id="register-form" class="auth-form">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="reg-username" placeholder="Choose a name" autocomplete="username" required minlength="3">
+          <span class="field-hint" id="username-hint"></span>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="reg-password" placeholder="At least 4 characters" autocomplete="new-password" required minlength="4">
+        </div>
+        <div class="form-group">
+          <label>Email <span class="optional">(optional)</span></label>
+          <input type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
+        </div>
+        <button type="submit" class="btn-primary">Found Your Civilization</button>
+        <p class="auth-error" id="register-error"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="game-screen" class="screen">
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <div class="age-badge">
+          <span class="age-icon" id="age-icon">🪨</span>
+          <div>
+            <div class="age-name" id="age-name">Stone Age</div>
+            <div class="age-level">Level <span id="current-level">1</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="top-bar-center">
+        <div class="score-display">
+          <span class="score-label">Score</span>
+          <span class="score-value" id="total-score">0</span>
+        </div>
+      </div>
+      <div class="top-bar-right">
+        <span class="player-name" id="player-name">Player</span>
+        <button class="btn-icon" id="leaderboard-btn" title="Bestenliste" aria-label="Bestenliste öffnen">🏆</button>
+        <button class="btn-icon" id="achievements-btn" title="Erfolge" aria-label="Erfolge öffnen">🏅</button>
+        <button class="btn-icon" id="artifacts-btn" title="Artefakte" aria-label="Artefakte öffnen">🏺</button>
+        <button class="btn-icon btn-icon-badge" id="missions-btn" title="Tägliche Missionen" aria-label="Missionen öffnen">📋<span class="missions-badge" style="display:none"></span></button>
+        <button class="btn-icon" id="save-btn" title="Speichern" aria-label="Spiel speichern">💾</button>
+        <button class="btn-icon" id="settings-btn" title="Einstellungen" aria-label="Einstellungen öffnen">⚙️</button>
+        <button class="btn-icon" id="logout-btn" title="Abmelden" aria-label="Abmelden">🚪</button>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="game-layout">
+
+      <!-- Left: Resources -->
+      <aside class="panel panel-resources">
+        <h2 class="panel-title">Resources</h2>
+        <div id="resources-list" class="resources-list">
+          <!-- populated by JS -->
+        </div>
+        <div class="production-rate" id="production-rate"></div>
+      </aside>
+
+      <!-- Center: Click + Progress -->
+      <main class="panel panel-main">
+        <div class="civilization-display">
+          <div class="civ-visual" id="civ-visual" title="Weltkarte öffnen">
+            <div class="civ-scene" id="civ-scene">🏕️</div>
+            <div class="civ-map-hint">🗺️</div>
+          </div>
+          <div class="civ-label" id="civ-label">Your Settlement</div>
+        </div>
+
+        <!-- Event Banner -->
+        <div id="event-banner" class="event-banner" style="display:none" aria-live="polite">
+          <div class="ev-body">
+            <span class="ev-icon"></span>
+            <div class="ev-text">
+              <span class="ev-name"></span>
+              <span class="ev-desc"></span>
+            </div>
+            <span class="ev-countdown"></span>
+            <button class="ev-dismiss" onclick="deactivateEvent()" aria-label="Ereignis schließen">✕</button>
+          </div>
+          <div class="ev-timer-wrap"><div class="ev-timer-fill"></div></div>
+        </div>
+
+        <div id="click-btns-container" class="click-btns-container">
+          <!-- populated by renderClickButtons() -->
+        </div>
+
+        <!-- Level Progress -->
+        <div class="level-section">
+          <div class="level-info">
+            <span>Level <span id="lv-current">1</span></span>
+            <span id="lv-score-display">0 / 500</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="lv-progress-fill" style="width:0%"></div>
+          </div>
+          <button class="btn-levelup" id="levelup-btn" disabled aria-label="Level aufsteigen">
+            <span id="levelup-text">Level Up</span>
+          </button>
+          <div class="levelup-cost" id="levelup-cost" aria-live="polite"></div>
+          <button class="btn-prestige" id="prestige-btn" disabled aria-label="Prestige sammeln und neu starten">✨ Prestige sammeln</button>
+          <div class="prestige-info" id="prestige-info">Prestige: 0 — Produktion ×1.00</div>
+          <div class="level-eta" id="level-eta"></div>
+        </div>
+
+        <!-- Age Transition -->
+        <div class="age-transition" id="age-transition" style="display:none">
+          <div class="age-transition-content">
+            <div class="age-transition-icon" id="at-icon">🏆</div>
+            <h3 id="at-title">New Age!</h3>
+            <p id="at-desc">You have advanced to a new era!</p>
+            <button class="btn-primary" id="at-close" aria-label="Zeitalter-Übergang schließen">Continue</button>
+          </div>
+        </div>
+
+        <!-- Notifications -->
+        <div id="notifications" class="notifications"></div>
+      </main>
+
+      <!-- Right: Buildings -->
+      <aside class="panel panel-buildings">
+        <h2 class="panel-title">Buildings</h2>
+        <div id="buildings-list" class="buildings-list">
+          <!-- populated by JS -->
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="tutorial-modal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="tutorial-heading">
+      <div class="modal-content modal-sm">
+        <div class="modal-header">
+          <h2 id="tutorial-heading">🏛️ Willkommen!</h2>
+          <button class="modal-close" id="tutorial-close" aria-label="Tutorial schließen">✕</button>
+        </div>
+        <div class="tutorial-steps">
+
+          <div class="tutorial-step" data-step="0">
+            <div class="tutorial-icon">👆</div>
+            <h3>Das Klick-System</h3>
+            <p>Klicke auf den großen Button in der Mitte, um Ressourcen zu sammeln. Je mehr du klickst, desto stärker wird dein Klick — er steigt automatisch mit Level auf.</p>
+            <p>Mit mehr Gebäuden (10 bzw. 25) schaltest du zwei weitere Klick-Slots frei, die zusätzliche Ressourcen sammeln.</p>
+          </div>
+
+          <div class="tutorial-step" data-step="1">
+            <div class="tutorial-icon">🌾</div>
+            <h3>Sammel-Zeitalter</h3>
+            <p>Du kannst wählen, welches Zeitalter deine Klick-Buttons verwenden. Öffne die <strong>Weltkarte</strong> (🗺️) und klicke auf ein Zeitalter um dort zu sammeln.</p>
+            <p>So kannst du gezielt die Ressourcen farmen, die du gerade brauchst — auch wenn du schon in einem späteren Zeitalter bist.</p>
+          </div>
+
+          <div class="tutorial-step" data-step="2">
+            <div class="tutorial-icon">✨</div>
+            <h3>Prestige</h3>
+            <p>Ab <strong>Level 5</strong> kannst du Prestige sammeln. Damit setzt du alles zurück — Level, Gebäude, Ressourcen — und startest neu.</p>
+            <p>Dafür bekommst du dauerhaft mehr Produktion (<strong>+5% pro Prestige</strong>) und günstigere Level-Ups (<strong>−3% Kosten pro Prestige</strong>, max. −50%).</p>
+            <p>Es lohnt sich abzuwägen: früh prestige'n für schnellen Bonus, oder erst weiter aufbauen?</p>
+          </div>
+
+          <div class="tutorial-step" data-step="3">
+            <div class="tutorial-icon">🌙</div>
+            <h3>Offline-Fortschritt</h3>
+            <p>Deine Gebäude produzieren auch wenn du nicht spielst! Beim nächsten Login werden bis zu <strong>8 Stunden</strong> offline Produktion gutgeschrieben.</p>
+            <p>Das Limit kannst du in den ⚙️ <strong>Einstellungen</strong> anpassen. Speichere regelmäßig, damit dein Fortschritt nicht verloren geht.</p>
+          </div>
+
+        </div>
+        <div class="tutorial-footer">
+          <div class="tutorial-dots" id="tutorial-dots"></div>
+          <div class="tutorial-nav">
+            <button class="btn-secondary" id="tutorial-prev">← Zurück</button>
+            <button class="btn-primary" id="tutorial-next">Weiter →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard-modal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="lb-heading">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="lb-heading">🏆 Leaderboard</h2>
+          <button class="modal-close" id="lb-close" aria-label="Bestenliste schließen">✕</button>
+        </div>
+        <div class="lb-tabs" role="tablist">
+          <button class="lb-tab active" data-event="Global" role="tab" aria-selected="true">Global</button>
+          <button class="lb-tab" data-event="Weekly" role="tab" aria-selected="false">Weekly</button>
+        </div>
+        <div id="lb-list" class="lb-list">
+          <div class="lb-loading">Loading...</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" id="lb-submit-btn">Submit My Score</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="settings-heading">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h2 id="settings-heading">⚙️ Settings</h2>
+        <button class="modal-close" id="settings-close" aria-label="Einstellungen schließen">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-row">
+          <label class="setting-label">Auto-Save Intervall</label>
+          <select id="autosave-select" class="setting-select">
+            <option value="0">Aus</option>
+            <option value="30">30 Sekunden</option>
+            <option value="60">1 Minute</option>
+            <option value="120">2 Minuten</option>
+            <option value="300">5 Minuten</option>
+            <option value="600">10 Minuten</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Offline-Fortschritt (max)</label>
+          <select id="offline-cap-select" class="setting-select">
+            <option value="2">2 Stunden</option>
+            <option value="4">4 Stunden</option>
+            <option value="8">8 Stunden</option>
+            <option value="24">24 Stunden</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Benachrichtigungen</label>
+          <select id="notifications-select" class="setting-select">
+            <option value="1">An</option>
+            <option value="0">Aus</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Sounds</label>
+          <select id="sound-select" class="setting-select">
+            <option value="1">An</option>
+            <option value="0">Aus</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Vibration</label>
+          <select id="vibration-select" class="setting-select">
+            <option value="1">An</option>
+            <option value="0">Aus</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label class="setting-label">Tutorial</label>
+          <button class="btn-secondary" id="tutorial-reopen-btn" style="font-size:0.85rem;padding:0.4rem 0.8rem">📖 Tutorial anzeigen</button>
+        </div>
+        <p class="setting-hint">💾 Beim manuellen Speichern wird der Score automatisch in Global- und Wochenbestenliste eingetragen.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="settings-save-btn">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Minimap / World Modal -->
+  <div id="minimap-modal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="minimap-heading">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h2 id="minimap-heading">🗺️ Weltkarte</h2>
+        <button class="modal-close" id="minimap-close" aria-label="Weltkarte schließen">✕</button>
+      </div>
+      <div class="minimap-body">
+        <p class="minimap-hint">Klicke auf ein Zeitalter um Details zu sehen.</p>
+        <div id="minimap-grid" class="minimap-grid">
+          <!-- populated by renderMinimap() -->
+        </div>
+        <div id="minimap-detail" class="minimap-detail" style="display:none">
+          <!-- age detail -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Achievements Modal -->
+  <div id="achievements-modal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="ach-heading">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h2 id="ach-heading">🏅 Erfolge <span id="ach-count" style="font-size:0.85rem;color:var(--text-muted);font-weight:400"></span></h2>
+        <button class="modal-close" id="ach-close" aria-label="Erfolge schließen">✕</button>
+      </div>
+      <div class="ach-tab-row" role="tablist">
+        <button class="ach-tab active" id="tab-ach-btn"   role="tab" aria-selected="true">🏅 Erfolge</button>
+        <button class="ach-tab"        id="tab-chars-btn" role="tab" aria-selected="false">🏛️ Charaktere</button>
+        <button class="ach-tab"        id="tab-arts-btn"  role="tab" aria-selected="false">🏺 Artefakte</button>
+      </div>
+      <div class="ach-bonus-summary" id="ach-bonus-summary"></div>
+      <div class="modal-body-scroll">
+        <div id="achievements-grid" class="achievements-grid">
+          <!-- populated by renderAchievements() -->
+        </div>
+        <div id="chars-grid" class="chars-grid" style="display:none">
+          <!-- populated by renderCharacters() -->
+        </div>
+        <div id="artifacts-grid" class="artifacts-grid" style="display:none">
+          <!-- populated by renderArtifacts() -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Popup -->
+  <div id="char-popup" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="char-popup-title">
+    <div class="modal-content modal-sm char-popup-content">
+      <div class="modal-header">
+        <h2 id="char-popup-title" class="char-popup-heading">Ein Charakter erscheint!</h2>
+        <button class="modal-close" id="char-popup-close" aria-label="Charakter-Popup schließen">✕</button>
+      </div>
+      <div class="char-popup-hero">
+        <div class="char-popup-avatar" id="char-popup-avatar">🧙</div>
+        <div class="char-popup-meta">
+          <div class="char-popup-name" id="char-popup-name">Name</div>
+          <div class="char-popup-era" id="char-popup-era">Era</div>
+        </div>
+      </div>
+      <div class="char-popup-quote" id="char-popup-quote">"..."</div>
+      <div class="char-popup-body" id="char-popup-body"></div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="char-popup-ok">Quest annehmen!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Missions Modal -->
+  <div id="missions-modal" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="missions-heading">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h2 id="missions-heading">📋 Tägliche Missionen</h2>
+        <button class="modal-close" id="missions-close" aria-label="Missionen schließen">✕</button>
+      </div>
+      <div class="modal-body-scroll">
+        <div id="missions-grid" class="missions-grid">
+          <!-- populated by renderMissions() -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

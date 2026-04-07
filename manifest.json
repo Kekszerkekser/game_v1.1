@@ -1,0 +1,27 @@
+{
+  "name": "Ages of Civilization",
+  "short_name": "AoC",
+  "description": "Ein historisches Idle-Spiel – von der Steinzeit bis ins Weltraumzeitalter",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a1208",
+  "theme_color": "#c4953a",
+  "lang": "de",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": []
+}

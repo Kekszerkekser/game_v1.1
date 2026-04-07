@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="#1a1208"/>
+
+  <!-- Shield -->
+  <path d="M256 80 L380 130 L380 270 Q380 360 256 430 Q132 360 132 270 L132 130 Z"
+        fill="#2e2010" stroke="#c4953a" stroke-width="8"/>
+
+  <!-- Inner shield border -->
+  <path d="M256 110 L355 152 L355 268 Q355 342 256 402 Q157 342 157 268 L157 152 Z"
+        fill="none" stroke="#f0b84a" stroke-width="3" opacity="0.5"/>
+
+  <!-- Sword -->
+  <line x1="256" y1="155" x2="256" y2="355" stroke="#f0b84a" stroke-width="10" stroke-linecap="round"/>
+  <line x1="216" y1="220" x2="296" y2="220" stroke="#f0b84a" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Sword tip -->
+  <polygon points="256,145 248,168 264,168" fill="#f0b84a"/>
+
+  <!-- Sword pommel -->
+  <circle cx="256" cy="362" r="10" fill="#c4953a"/>
+
+  <!-- Stars / dots for decoration -->
+  <circle cx="210" cy="300" r="4" fill="#c4953a" opacity="0.7"/>
+  <circle cx="302" cy="300" r="4" fill="#c4953a" opacity="0.7"/>
+  <circle cx="256" cy="280" r="3" fill="#f0b84a" opacity="0.5"/>
+</svg>
