@@ -324,8 +324,12 @@ app.post('/api/leaderboard/submit', leaderboardSubmitLimiter, authRequired, asyn
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
+if (require.main === module) {
 app.listen(PORT, () => {
   console.log(`\n⚔️  Ages of Civilization Server`);
   console.log(`   Running at http://localhost:${PORT}`);
   console.log(`   Open http://localhost:${PORT} in your browser\n`);
 });
+}
+
+module.exports = app;
