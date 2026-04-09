@@ -1703,6 +1703,24 @@ function clickLevelInfo(totalClicks) {
   }
 }
 
+function buildClickBreakdown(base) {
+  const prestigeMult  = prestigeClickMultiplier();
+  const levelMult     = getLevelMultiplier();
+  const achMult       = getAchievementBonuses().clickMult;
+  const charMult      = getCharacterBonuses().clickMult;
+  const artMult       = getArtifactBonuses().clickMult;
+  const eventMult     = activeEvent?.clickMult || 1;
+
+  const parts = [`Basis: ${fmtFraction(base)}`];
+  if (prestigeMult > 1.001)  parts.push(`Prestige ×${prestigeMult.toFixed(2)}`);
+  if (levelMult > 1.001)     parts.push(`Level ×${levelMult.toFixed(2)}`);
+  if (achMult > 1.001)       parts.push(`Erfolge ×${achMult.toFixed(2)}`);
+  if (charMult > 1.001)      parts.push(`Quests ×${charMult.toFixed(2)}`);
+  if (artMult > 1.001)       parts.push(`Artefakte ×${artMult.toFixed(2)}`);
+  if (eventMult > 1.001)     parts.push(`Event ×${eventMult.toFixed(2)}`);
+  return parts.join(' | ');
+}
+
 function renderClickButtons() {
   const container = document.getElementById('click-btns-container');
   if (!container) return;
@@ -1714,7 +1732,13 @@ function renderClickButtons() {
   }
 
   // Pre-compute shared multipliers (same for all slots)
-  const bonusMult = prestigeClickMultiplier() * getLevelMultiplier() * getAchievementBonuses().clickMult * getCharacterBonuses().clickMult * getArtifactBonuses().clickMult * (activeEvent?.clickMult || 1);
+  const prestigeMult = prestigeClickMultiplier();
+  const levelMult    = getLevelMultiplier();
+  const achMult      = getAchievementBonuses().clickMult;
+  const charMult     = getCharacterBonuses().clickMult;
+  const artMult      = getArtifactBonuses().clickMult;
+  const eventMult    = activeEvent?.clickMult || 1;
+  const bonusMult    = prestigeMult * levelMult * achMult * charMult * artMult * eventMult;
 
   // Slot 0: primary large button
   const s0 = CLICK_SLOTS[0];
@@ -1722,10 +1746,12 @@ function renderClickButtons() {
   const base0 = state.clickPowers[0] || s0.basePower;
   const eff0 = base0 * bonusMult;
   const u0 = upgInfo(0);
-  let html = `<button class="click-btn" data-slot="0">
+  const bd0 = buildClickBreakdown(base0);
+  let html = `<button class="click-btn" data-slot="0" title="${bd0}">
     <span class="click-icon">${res0?.icon || '👆'}</span>
     <span class="click-label">${s0.label} ${res0?.name || ''}</span>
     <span class="click-power">+${fmtFraction(eff0)} ${res0?.name || ''}</span>
+    <span class="click-breakdown">${bd0}</span>
     <span class="click-upg-row"><span class="click-upg-lvl">Lvl ${u0.lvl}</span><span class="click-upg-next">⬆ ${u0.toNext}</span></span>
   </button>
   <div class="click-btns-row">`;
@@ -1738,12 +1764,14 @@ function renderClickButtons() {
     const baseP = state.clickPowers[i] || slot.basePower;
     const effP = baseP * bonusMult;
     const ui = upgInfo(i);
-    html += `<button class="click-btn-secondary${locked ? ' slot-locked' : ''}" data-slot="${i}"${locked ? ' disabled' : ''}>
+    const bdP = buildClickBreakdown(baseP);
+    html += `<button class="click-btn-secondary${locked ? ' slot-locked' : ''}" data-slot="${i}"${locked ? ' disabled' : ''}${!locked ? ` title="${bdP}"` : ''}>
       <span class="click-icon">${locked ? '🔒' : (res?.icon || '⛏️')}</span>
       <span class="click-label">${locked ? slot.unlockBuildings + ' Geb.' : slot.label + ' ' + (res?.name || '')}</span>
       ${locked
         ? `<span class="slot-unlock-hint">bei ${slot.unlockBuildings} Gebäuden</span>`
         : `<span class="click-power">+${fmtFraction(effP)} ${res?.name || ''}</span>
+           <span class="click-breakdown">${bdP}</span>
            <span class="click-upg-row"><span class="click-upg-lvl">Lvl ${ui.lvl}</span><span class="click-upg-next">⬆ ${ui.toNext}</span></span>`
       }
     </button>`;

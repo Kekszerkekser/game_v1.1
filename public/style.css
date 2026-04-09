@@ -322,6 +322,7 @@ body {
 .click-icon { font-size: 2rem; }
 .click-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(0,0,0,0.7); font-weight: 600; }
 .click-power { font-size: 1.1rem; font-weight: 700; color: #000; }
+.click-breakdown { font-size: 0.58rem; color: rgba(0,0,0,0.5); text-align: center; line-height: 1.3; }
 
 /* Click float animation */
 .click-float {
@@ -546,6 +547,7 @@ body {
 .click-btn-secondary .click-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.8px; color: rgba(0,0,0,0.7); font-weight: 600; }
 .click-btn-secondary.slot-locked .click-label { color: var(--text-muted); }
 .click-btn-secondary .click-power { font-size: 0.85rem; font-weight: 700; color: #000; }
+.click-btn-secondary .click-breakdown { font-size: 0.52rem; color: rgba(0,0,0,0.45); text-align: center; line-height: 1.3; }
 .click-btn-secondary.slot-locked .click-power { display: none; }
 .slot-unlock-hint { font-size: 0.65rem; color: var(--text-muted); }
 .click-upg-row { display: flex; justify-content: space-between; width: 100%; margin-top: 0.18rem; padding: 0 0.1rem; }
