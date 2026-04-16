@@ -929,6 +929,27 @@ function getClickStreakMultiplier() {
   return 1 + Math.min(0.75, Math.max(0, state.clickStreak - 1) * 0.06);
 }
 
+const COMBO_TIERS = [
+  { min: 20, label: '🌟 UNSTOPPABLE', cls: 'combo-unstoppable' },
+  { min: 15, label: '💥 On Fire',     cls: 'combo-onfire'      },
+  { min: 10, label: '⚡ Blazing',     cls: 'combo-blazing'     },
+  { min:  5, label: '🔥 Hot',         cls: 'combo-hot'         },
+  { min:  1, label: '',               cls: ''                  },
+];
+
+function getComboTier(streak) {
+  return COMBO_TIERS.find(t => streak >= t.min) || COMBO_TIERS[COMBO_TIERS.length - 1];
+}
+
+function getRhythmMultiplier() {
+  const intervals = state.clickIntervals || [];
+  if (intervals.length < 4) return 1;
+  const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  if (mean < 200 || mean > 1200) return 1;
+  const stddev = Math.sqrt(intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length);
+  return stddev < 150 ? 1.25 : 1;
+}
+
 function getClickCritChance() {
   return Math.min(0.30, (state.clickCritChance || 0.08));
 }
@@ -955,7 +976,6 @@ function activateClickBurst(evt = null) {
   state.res[resKey] = (state.res[resKey] || 0) + burstPower;
   state.score += burstScore;
   state.clickBurstCharge = 0;
-  state.clickStreak = 0;
 
   if (evt) {
     const btn = (evt.target && evt.target.closest && evt.target.closest('[data-action]')) || evt.currentTarget;
@@ -993,6 +1013,7 @@ let state = {
   lastClickTs: 0,
   clickCritChance: 0.08,
   clickBurstCharge: 0,
+  clickIntervals: [],
   achievements: {},
   weeklyBaseScore: 0,
   weeklyStartTs: null,
@@ -1109,6 +1130,9 @@ function playSound(type) {
         playTone(550, 'triangle', 0.08, 0.15, 0.12);
         playTone(660, 'triangle', 0.06, 0.20, 0.24);
         break;
+      case 'golden':
+        [1047, 1319, 1568, 2093].forEach((f, i) => playTone(f, 'sine', 0.14, 0.35, i * 0.09));
+        break;
     }
   } catch {}
 }
@@ -1213,14 +1237,14 @@ function notify(msg, type = 'info') {
   setTimeout(() => div.remove(), 4000);
 }
 
-function showFloat(x, y, text) {
+function showFloat(x, y, text, extraClass = '') {
   const el = document.createElement('div');
-  el.className = 'click-float';
+  el.className = 'click-float' + (extraClass ? ' ' + extraClass : '');
   el.style.left = (x - 20) + 'px';
   el.style.top = (y - 30) + 'px';
   el.textContent = text;
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 1000);
+  setTimeout(() => el.remove(), extraClass ? 1600 : 1000);
 }
 
 // ── Production calculation ────────────────────────────────────────────────────
@@ -1810,6 +1834,8 @@ function buildClickBreakdown(base) {
   if (charMult > 1.001)      parts.push(`Quests ×${charMult.toFixed(2)}`);
   if (artMult > 1.001)       parts.push(`Artefakte ×${artMult.toFixed(2)}`);
   if (streakMult > 1.001)    parts.push(`Combo ×${streakMult.toFixed(2)}`);
+  const rhythmMult = getRhythmMultiplier();
+  if (rhythmMult > 1.001)    parts.push(`🎵 Rhythmus ×${rhythmMult.toFixed(2)}`);
   if (critChance > 0.001)    parts.push(`Krit ${Math.round(critChance * 100)}%`);
   if (eventMult > 1.001)     parts.push(`Event ×${eventMult.toFixed(2)}`);
   return parts.join(' | ');
@@ -1835,6 +1861,7 @@ function renderClickButtons() {
   const streakMult  = getClickStreakMultiplier();
   const critChance  = getClickCritChance();
   const bonusMult    = prestigeMult * levelMult * achMult * charMult * artMult * eventMult;
+  const comboTier   = getComboTier(state.clickStreak || 0);
 
   // Slot 0: primary large button
   const s0 = CLICK_SLOTS[0];
@@ -1843,12 +1870,15 @@ function renderClickButtons() {
   const eff0 = base0 * bonusMult;
   const u0 = upgInfo(0);
   const bd0 = buildClickBreakdown(base0);
-  let html = `<button class="click-btn" data-slot="0" title="${bd0}">
+  const comboLabel = comboTier.label ? `${comboTier.label} (${state.clickStreak})` : `Combo ×${streakMult.toFixed(2)}`;
+  const rhythmMult = getRhythmMultiplier();
+  const rhythmLabel = rhythmMult > 1.001 ? ' · 🎵×1.25' : '';
+  let html = `<button class="click-btn ${comboTier.cls}" data-slot="0" title="${bd0}">
     <span class="click-icon">${res0?.icon || '👆'}</span>
     <span class="click-label">${s0.label} ${res0?.name || ''}</span>
     <span class="click-power">+${fmtFraction(eff0)} ${res0?.name || ''}</span>
     <span class="click-breakdown">${bd0}</span>
-    <span class="click-status">Combo ×${streakMult.toFixed(2)} · Krit ${Math.round(critChance * 100)}%</span>
+    <span class="click-status">${comboLabel}${rhythmLabel} · Krit ${Math.round(critChance * 100)}%</span>
     <span class="click-upg-row"><span class="click-upg-lvl">Lvl ${u0.lvl}</span><span class="click-upg-next">⬆ ${u0.toNext}</span></span>
   </button>
   <div class="click-btns-row">`;
@@ -1895,19 +1925,37 @@ function doClick(e, slotIdx = 0) {
   const power = basePower * prestigeClickMultiplier() * getLevelMultiplier() * getAchievementBonuses().clickMult * getCharacterBonuses().clickMult * getArtifactBonuses().clickMult * (activeEvent?.clickMult || 1);
 
   const now = Date.now();
-  if (now - (state.lastClickTs || 0) <= CLICK_STREAK_RESET_MS) {
+  const prevStreak = state.clickStreak || 0;
+  const interval = state.lastClickTs ? now - state.lastClickTs : null;
+  if (interval !== null && interval <= CLICK_STREAK_RESET_MS) {
     state.clickStreak++;
+    const intervals = state.clickIntervals || [];
+    intervals.push(interval);
+    if (intervals.length > 4) intervals.shift();
+    state.clickIntervals = intervals;
   } else {
     state.clickStreak = 1;
+    state.clickIntervals = [];
   }
   state.lastClickTs = now;
 
+  // Notify on tier-up
+  const prevTier = getComboTier(prevStreak);
+  const newTier  = getComboTier(state.clickStreak);
+  if (newTier.label && newTier.label !== prevTier.label) {
+    notify(`${newTier.label}! ×${getClickStreakMultiplier().toFixed(2)} Combo`, 'success');
+  }
+
   const streakMult = getClickStreakMultiplier();
-  const crit = Math.random() < getClickCritChance();
-  const finalPower = power * streakMult * (crit ? 2 : 1);
+  const rhythmMult = getRhythmMultiplier();
+  const golden = Math.random() < 0.005;
+  const crit = !golden && Math.random() < getClickCritChance();
+  const finalPower = power * streakMult * rhythmMult * (golden ? 10 : crit ? 2 : 1);
 
   const prevBurst = state.clickBurstCharge || 0;
-  state.clickBurstCharge = Math.min(CLICK_BURST_THRESHOLD, prevBurst + (crit ? 2 : 1));
+  const streakBonus = Math.floor(state.clickStreak / 10); // +1 per 10 streak
+  const burstGain = (crit ? 2 : 1) + streakBonus;
+  state.clickBurstCharge = Math.min(CLICK_BURST_THRESHOLD, prevBurst + burstGain);
   if (prevBurst < CLICK_BURST_THRESHOLD && state.clickBurstCharge >= CLICK_BURST_THRESHOLD) {
     notify('⚡ Klick-Burst bereit!', 'success');
   }
@@ -1922,12 +1970,18 @@ function doClick(e, slotIdx = 0) {
   if (e) {
     const btn = (e.target && e.target.closest && e.target.closest('[data-slot]')) || e.currentTarget;
     const rect = btn.getBoundingClientRect();
-    const symbol = crit ? '🔥' : state.clickStreak >= 3 ? '⚡' : '✋';
-    showFloat(rect.left + rect.width / 2, rect.top, `${symbol}+${fmtFraction(finalPower)} ${RESOURCES[resKey].icon}`);
+    const tierIcon = getComboTier(state.clickStreak).label.split(' ')[0] || '✋';
+    const symbol = golden ? '⭐' : crit ? '🔥' : (state.clickStreak >= 5 ? tierIcon : '✋');
+    showFloat(rect.left + rect.width / 2, rect.top, `${symbol}+${fmtFraction(finalPower)} ${RESOURCES[resKey].icon}`, golden ? 'float-golden' : '');
   }
 
-  playSound('click');
-  if (crit) playSound('achievement');
+  if (golden) {
+    playSound('golden');
+    notify(`⭐ Goldener Klick! ×10 Power! +${fmtFraction(finalPower)} ${RESOURCES[resKey].name}`, 'success');
+  } else {
+    playSound('click');
+    if (crit) playSound('achievement');
+  }
   vibrate(50);
 
   // Per-slot click power upgrade on level-up
