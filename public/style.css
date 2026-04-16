@@ -323,6 +323,18 @@ body {
 .click-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(0,0,0,0.7); font-weight: 600; }
 .click-power { font-size: 1.1rem; font-weight: 700; color: #000; }
 .click-breakdown { font-size: 0.58rem; color: rgba(0,0,0,0.5); text-align: center; line-height: 1.3; }
+.click-status { font-size: 0.68rem; color: rgba(0,0,0,0.6); padding: 0 0.5rem; text-align: center; }
+.click-burst-panel { width: 100%; margin-top: 0.75rem; display: grid; gap: 0.5rem; }
+.burst-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(0,0,0,0.6); text-align: center; }
+.burst-meter { width: 100%; height: 8px; background: rgba(0,0,0,0.08); border-radius: 999px; overflow: hidden; }
+.burst-meter span { display: block; height: 100%; background: rgba(255,255,255,0.9); border-radius: 999px; transition: width 0.2s ease; }
+.click-burst-btn { width: 100%; padding: 0.75rem 1rem; background: #222; color: #fff; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
+.click-burst-btn:hover:not(:disabled) { background: #1f1f1f; transform: translateY(-1px); }
+.click-burst-btn.burst-ready { background: linear-gradient(135deg, #f4d35e, #f28f3b); color: #1d1d1d; box-shadow: 0 0 18px rgba(242,143,59,0.45); }
+.click-burst-btn.burst-active { animation: burstFlash 0.45s ease-out; }
+.click-burst-btn:disabled, .click-burst-btn.disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+@keyframes burstFlash { 0% { transform: scale(1); box-shadow: 0 0 18px rgba(242,143,59,0.35); } 50% { transform: scale(1.06); box-shadow: 0 0 28px rgba(242,143,59,0.8); } 100% { transform: scale(1); box-shadow: 0 0 18px rgba(242,143,59,0.35); } }
 
 /* Click float animation */
 .click-float {

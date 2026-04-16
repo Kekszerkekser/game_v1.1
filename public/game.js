@@ -1,11 +1,8 @@
 //score wird auf 0 gesetzt wenn prestige. wär cooler wenn alter score da stehen bleibt. Neuen score evtl wo anders einbauen?
 //-> wenn geändert leaderboard anpassen
-//global und weekly trennen in notion. führt schnell zu verwirrung
 //clicken wird nicht belohnt. Entweder mengen erhöhen welche man bekommt oder öfter level upen
 //Level ups mehr belohnen. zb x2 auf alle prod + clicks 
-//warum veraltet? dann sollte man alte Gebäude verbessern können, das diese wieder "normal" produzieren
 //prestige stärker belohnen. nur die Letzten 3 stufen "schwer" machen
-//boni von artefacts und quests mit einberechnen bei den Clicks und der produktion
 //offline fortschritt "freischalten" indem man gebäude x kaufen muss
 //nanobanana für bilder
 //test
@@ -16,12 +13,16 @@
 const API = '/api';
 const TICK_MS = 200; // game update every 200ms
 const AUTOSAVE_MS = 60_000;
+const CLICK_STREAK_RESET_MS = 2500; // milliseconds until combo ends
+const CLICK_BURST_THRESHOLD = 15;
+const CLICK_BURST_MULT = 5;
+const CLICK_BURST_SCORE_MULT = 1.5;
 
 // Click slots: unlocked at N total buildings, each uses a different res from the current age
 const CLICK_SLOTS = [
-  { unlockBuildings: 0,  basePower: 2,   resIdx: 0, icon: '👆', label: 'Sammeln' },
-  { unlockBuildings: 10, basePower: 1,   resIdx: 1, icon: '⛏️', label: 'Sammeln' },
-  { unlockBuildings: 25, basePower: 0.5, resIdx: 2, icon: '🏗️', label: 'Sammeln' },
+  { unlockBuildings: 0,  basePower: 3,   resIdx: 0, icon: '👆', label: 'Sammeln' },
+  { unlockBuildings: 10, basePower: 1.8, resIdx: 1, icon: '⛏️', label: 'Sammeln' },
+  { unlockBuildings: 25, basePower: 1.0, resIdx: 2, icon: '🏗️', label: 'Sammeln' },
 ];
 
 const AGES = [
@@ -767,71 +768,91 @@ const BUILDINGS = [
     baseCost: { stone: 10 }, costScale: 1.15 },
   { id: 'lumbermill',     name: 'Lumber Mill',      icon: '🪚', unlockAge: 0,
     desc: '+0.5 Wood/s',  baseProd: { wood: 0.5 },
-    baseCost: { food: 15 }, costScale: 1.15 },
+    baseCost: { food: 15 }, costScale: 1.15,
+    unlockRequires: { bld: { camp: 5 } } },
   { id: 'quarry',         name: 'Stone Quarry',     icon: '⛏️', unlockAge: 0,
     desc: '+0.5 Stone/s', baseProd: { stone: 0.5 },
-    baseCost: { wood: 20 }, costScale: 1.15 },
+    baseCost: { food: 10, wood: 20 }, costScale: 1.15,
+    unlockRequires: { bld: { lumbermill: 5 } } },
   // Bronze Age
   { id: 'bronzemine',     name: 'Bronze Mine',      icon: '⛏️', unlockAge: 1,
     desc: '+0.3 Bronze/s', baseProd: { bronze: 0.3 },
-    baseCost: { stone: 100 }, costScale: 1.18 },
+    baseCost: { stone: 150, wood: 80, bronze: 15 }, costScale: 1.18,
+    unlockRequires: { bld: { quarry: 50 } } },
   { id: 'tradingpost',    name: 'Trading Post',     icon: '🏪', unlockAge: 1,
     desc: '+0.2 Bronze/s, +0.2 Stone/s', baseProd: { bronze: 0.2, stone: 0.2 },
-    baseCost: { bronze: 60, wood: 80 }, costScale: 1.18 },
+    baseCost: { bronze: 60, wood: 80 }, costScale: 1.18,
+    unlockRequires: { bld: { bronzemine: 5 } } },
   // Iron Age
   { id: 'ironforge',      name: 'Iron Forge',       icon: '🔨', unlockAge: 2,
     desc: '+0.3 Iron/s',  baseProd: { iron: 0.3 },
-    baseCost: { bronze: 200, stone: 150 }, costScale: 1.2 },
+    baseCost: { bronze: 200, stone: 150, iron: 10 }, costScale: 1.2,
+    unlockRequires: { bld: { tradingpost: 25 } } },
   { id: 'barracks',       name: 'Barracks',         icon: '⚔️', unlockAge: 2,
     desc: '+0.2 Iron/s, bonus score', baseProd: { iron: 0.2 },
-    baseCost: { iron: 100, wood: 200 }, costScale: 1.2 },
+    baseCost: { iron: 100, wood: 200 }, costScale: 1.2,
+    unlockRequires: { bld: { ironforge: 5 } } },
   // Medieval
   { id: 'treasury',       name: 'Treasury',         icon: '💰', unlockAge: 3,
     desc: '+0.5 Gold/s',  baseProd: { gold: 0.5 },
-    baseCost: { iron: 500 }, costScale: 1.2 },
+    baseCost: { iron: 500, gold: 30 }, costScale: 1.2,
+    unlockRequires: { bld: { barracks: 15 } } },
   { id: 'cathedral',      name: 'Cathedral',        icon: '⛪', unlockAge: 3,
     desc: '+0.3 Faith/s', baseProd: { faith: 0.3 },
-    baseCost: { gold: 300, stone: 500 }, costScale: 1.2 },
+    baseCost: { gold: 300, stone: 500 }, costScale: 1.2,
+    unlockRequires: { bld: { treasury: 5 } } },
   { id: 'library',        name: 'Library',          icon: '📚', unlockAge: 3,
     desc: '+0.3 Culture/s', baseProd: { culture: 0.3 },
-    baseCost: { gold: 400, wood: 300 }, costScale: 1.2 },
+    baseCost: { gold: 400, wood: 300 }, costScale: 1.2,
+    unlockRequires: { bld: { treasury: 5 } } },
   // Renaissance
   { id: 'academy',        name: 'Academy',          icon: '🎓', unlockAge: 4,
     desc: '+0.5 Science/s', baseProd: { science: 0.5 },
-    baseCost: { gold: 2000, culture: 500 }, costScale: 1.22 },
+    baseCost: { gold: 2000, culture: 500, science: 20 }, costScale: 1.22,
+    unlockRequires: { bld: { library: 10 } } },
   { id: 'studio',         name: 'Art Studio',       icon: '🖼️', unlockAge: 4,
     desc: '+0.3 Art/s',   baseProd: { art: 0.3 },
-    baseCost: { gold: 1500, science: 300 }, costScale: 1.22 },
+    baseCost: { gold: 1500, science: 300 }, costScale: 1.22,
+    unlockRequires: { bld: { academy: 5 } } },
   // Industrial
   { id: 'coalmine',       name: 'Coal Mine',        icon: '⛏️', unlockAge: 5,
     desc: '+1 Coal/s',    baseProd: { coal: 1 },
-    baseCost: { gold: 10000 }, costScale: 1.2 },
+    baseCost: { gold: 10000, coal: 20 }, costScale: 1.2,
+    unlockRequires: { bld: { studio: 10 } } },
   { id: 'steelmill',      name: 'Steel Mill',       icon: '🏗️', unlockAge: 5,
     desc: '+0.5 Steel/s', baseProd: { steel: 0.5 },
-    baseCost: { coal: 2000, iron: 1000 }, costScale: 1.2 },
+    baseCost: { coal: 2000, iron: 1000 }, costScale: 1.2,
+    unlockRequires: { bld: { coalmine: 5 } } },
   { id: 'factory',        name: 'Factory',          icon: '🏭', unlockAge: 5,
     desc: '+0.4 Goods/s', baseProd: { goods: 0.4 },
-    baseCost: { steel: 1500, coal: 1000 }, costScale: 1.2 },
+    baseCost: { steel: 1500, coal: 1000 }, costScale: 1.2,
+    unlockRequires: { bld: { steelmill: 5 } } },
   // Modern
   { id: 'oilrig',         name: 'Oil Rig',          icon: '🛢️', unlockAge: 6,
     desc: '+1 Oil/s',     baseProd: { oil: 1 },
-    baseCost: { steel: 20000 }, costScale: 1.22 },
+    baseCost: { steel: 20000, oil: 50 }, costScale: 1.22,
+    unlockRequires: { bld: { factory: 10 } } },
   { id: 'powerplant',     name: 'Power Plant',      icon: '⚡', unlockAge: 6,
     desc: '+0.5 Electricity/s', baseProd: { electricity: 0.5 },
-    baseCost: { oil: 10000, steel: 5000 }, costScale: 1.22 },
+    baseCost: { oil: 10000, steel: 5000 }, costScale: 1.22,
+    unlockRequires: { bld: { oilrig: 5 } } },
   { id: 'techlab',        name: 'Tech Lab',         icon: '🔬', unlockAge: 6,
     desc: '+0.3 Technology/s', baseProd: { tech: 0.3 },
-    baseCost: { electricity: 8000, oil: 5000 }, costScale: 1.22 },
+    baseCost: { electricity: 8000, oil: 5000 }, costScale: 1.22,
+    unlockRequires: { bld: { powerplant: 5 } } },
   // Space Age
   { id: 'spaceport',      name: 'Spaceport',        icon: '🚀', unlockAge: 7,
     desc: '+1 Credits/s', baseProd: { credits: 1 },
-    baseCost: { electricity: 100000, tech: 50000 }, costScale: 1.25 },
+    baseCost: { electricity: 100000, tech: 50000, credits: 100 }, costScale: 1.25,
+    unlockRequires: { bld: { techlab: 10 } } },
   { id: 'fueldepot',      name: 'Fuel Depot',       icon: '⛽', unlockAge: 7,
     desc: '+0.5 Fuel/s',  baseProd: { fuel: 0.5 },
-    baseCost: { credits: 50000 }, costScale: 1.25 },
+    baseCost: { credits: 50000, fuel: 100 }, costScale: 1.25,
+    unlockRequires: { bld: { spaceport: 3 } } },
   { id: 'alloyfoundry',   name: 'Alloy Foundry',    icon: '🔩', unlockAge: 7,
     desc: '+0.3 Alloys/s', baseProd: { alloys: 0.3 },
-    baseCost: { credits: 80000, fuel: 30000 }, costScale: 1.25 },
+    baseCost: { credits: 80000, fuel: 30000 }, costScale: 1.25,
+    unlockRequires: { bld: { spaceport: 3 } } },
 ];
 
 // Buildings grouped by age (for the collapsible panel display)
@@ -904,6 +925,59 @@ function getLevelCost(lvl, age) {
   return costs;
 };
 
+function getClickStreakMultiplier() {
+  return 1 + Math.min(0.75, Math.max(0, state.clickStreak - 1) * 0.06);
+}
+
+function getClickCritChance() {
+  return Math.min(0.30, (state.clickCritChance || 0.08));
+}
+
+function getClickBurstChargePercent() {
+  return Math.min(100, Math.floor((state.clickBurstCharge || 0) / CLICK_BURST_THRESHOLD * 100));
+}
+
+function isClickBurstReady() {
+  return (state.clickBurstCharge || 0) >= CLICK_BURST_THRESHOLD;
+}
+
+function activateClickBurst(evt = null) {
+  if (!isClickBurstReady()) return;
+  const clickRes = CLICK_RES_BY_AGE[state.gatherAge] || CLICK_RES_BY_AGE[0];
+  const resKey = clickRes[0];
+  if (!resKey) return;
+
+  const basePower = state.clickPowers[0] || CLICK_SLOTS[0].basePower;
+  const power = basePower * prestigeClickMultiplier() * getLevelMultiplier() * getAchievementBonuses().clickMult * getCharacterBonuses().clickMult * getArtifactBonuses().clickMult * (activeEvent?.clickMult || 1);
+  const burstPower = power * CLICK_BURST_MULT;
+  const burstScore = burstPower * CLICK_BURST_SCORE_MULT;
+
+  state.res[resKey] = (state.res[resKey] || 0) + burstPower;
+  state.score += burstScore;
+  state.clickBurstCharge = 0;
+  state.clickStreak = 0;
+
+  if (evt) {
+    const btn = (evt.target && evt.target.closest && evt.target.closest('[data-action]')) || evt.currentTarget;
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      showFloat(rect.left + rect.width / 2, rect.top, `💥+${fmtFraction(burstPower)} ${RESOURCES[resKey].icon}`);
+    }
+  }
+
+  if (evt) {
+    const btn = (evt.target && evt.target.closest && evt.target.closest('[data-action]')) || evt.currentTarget;
+    if (btn) {
+      btn.classList.add('burst-active');
+      setTimeout(() => btn.classList.remove('burst-active'), 500);
+    }
+  }
+
+  playSound('event');
+  notify(`✨ Klick-Burst! +${fmtFraction(burstScore)} Score`, 'success');
+  renderClickButtons();
+}
+
 // ── Game State ────────────────────────────────────────────────────────────────
 
 let state = {
@@ -912,9 +986,13 @@ let state = {
   score: 0,
   allTimeScore: 0,           // cumulative score across all prestige runs
   clicks: 0,
-  clickPower: 2,             // kept for backward compat (= clickPowers[0])
-  clickPowers: [2, 1, 0.5],
+  clickPower: 3,             // kept for backward compat (= clickPowers[0])
+  clickPowers: [3, 1.8, 1.0],
   clicksBySlot: [0, 0, 0],
+  clickStreak: 0,
+  lastClickTs: 0,
+  clickCritChance: 0.08,
+  clickBurstCharge: 0,
   achievements: {},
   weeklyBaseScore: 0,
   weeklyStartTs: null,
@@ -1050,6 +1128,17 @@ function getUpgradeCost(bld) {
   if (currentAgeRes[0]) costs[currentAgeRes[0]] = base;
   if (currentAgeRes[1]) costs[currentAgeRes[1]] = Math.floor(base * 0.5);
   return costs;
+}
+
+function isBuildingReqMet(bld) {
+  if (!bld.unlockRequires) return true;
+  const { bld: bldReqs } = bld.unlockRequires;
+  if (bldReqs) {
+    for (const [id, needed] of Object.entries(bldReqs)) {
+      if ((state.bld[id] || 0) < needed) return false;
+    }
+  }
+  return true;
 }
 
 function upgradeBuilding(id) {
@@ -1549,6 +1638,7 @@ function doPrestige() {
 function updateBuildingButtons() {
   for (const bld of BUILDINGS) {
     if (bld.unlockAge > state.age) continue;
+    if (!isBuildingReqMet(bld)) continue;
     const cost1 = getBuildingCost(bld);
     const a1   = canAfford(cost1);
     const a5   = canAfford(getBuildingCostN(bld, 5));
@@ -1690,7 +1780,7 @@ function fmtFraction(n) {
 }
 
 function clickLevelThreshold(lvl) {
-  return Math.floor(50 * Math.pow(1.5, lvl));
+  return Math.floor(40 * Math.pow(1.4, lvl));
 }
 
 function clickLevelInfo(totalClicks) {
@@ -1709,6 +1799,8 @@ function buildClickBreakdown(base) {
   const achMult       = getAchievementBonuses().clickMult;
   const charMult      = getCharacterBonuses().clickMult;
   const artMult       = getArtifactBonuses().clickMult;
+  const streakMult    = getClickStreakMultiplier();
+  const critChance    = getClickCritChance();
   const eventMult     = activeEvent?.clickMult || 1;
 
   const parts = [`Basis: ${fmtFraction(base)}`];
@@ -1717,6 +1809,8 @@ function buildClickBreakdown(base) {
   if (achMult > 1.001)       parts.push(`Erfolge ×${achMult.toFixed(2)}`);
   if (charMult > 1.001)      parts.push(`Quests ×${charMult.toFixed(2)}`);
   if (artMult > 1.001)       parts.push(`Artefakte ×${artMult.toFixed(2)}`);
+  if (streakMult > 1.001)    parts.push(`Combo ×${streakMult.toFixed(2)}`);
+  if (critChance > 0.001)    parts.push(`Krit ${Math.round(critChance * 100)}%`);
   if (eventMult > 1.001)     parts.push(`Event ×${eventMult.toFixed(2)}`);
   return parts.join(' | ');
 }
@@ -1738,6 +1832,8 @@ function renderClickButtons() {
   const charMult     = getCharacterBonuses().clickMult;
   const artMult      = getArtifactBonuses().clickMult;
   const eventMult    = activeEvent?.clickMult || 1;
+  const streakMult  = getClickStreakMultiplier();
+  const critChance  = getClickCritChance();
   const bonusMult    = prestigeMult * levelMult * achMult * charMult * artMult * eventMult;
 
   // Slot 0: primary large button
@@ -1752,6 +1848,7 @@ function renderClickButtons() {
     <span class="click-label">${s0.label} ${res0?.name || ''}</span>
     <span class="click-power">+${fmtFraction(eff0)} ${res0?.name || ''}</span>
     <span class="click-breakdown">${bd0}</span>
+    <span class="click-status">Combo ×${streakMult.toFixed(2)} · Krit ${Math.round(critChance * 100)}%</span>
     <span class="click-upg-row"><span class="click-upg-lvl">Lvl ${u0.lvl}</span><span class="click-upg-next">⬆ ${u0.toNext}</span></span>
   </button>
   <div class="click-btns-row">`;
@@ -1777,6 +1874,12 @@ function renderClickButtons() {
     </button>`;
   }
   html += '</div>';
+  const burstReady = isClickBurstReady();
+  html += `<div class="click-burst-panel${burstReady ? ' ready' : ''}">
+    <div class="burst-label">Klick-Burst</div>
+    <div class="burst-meter"><span style="width:${getClickBurstChargePercent()}%"></span></div>
+    <button class="click-burst-btn${burstReady ? ' burst-ready' : ''}${burstReady ? '' : ' disabled'}" data-action="burst"${burstReady ? '' : ' disabled'}>${burstReady ? 'BURST! ⚡' : `Aufladung ${state.clickBurstCharge || 0}/${CLICK_BURST_THRESHOLD}`}</button>
+  </div>`;
   container.innerHTML = html;
 }
 
@@ -1790,8 +1893,26 @@ function doClick(e, slotIdx = 0) {
 
   const basePower = state.clickPowers[slotIdx] !== undefined ? state.clickPowers[slotIdx] : slot.basePower;
   const power = basePower * prestigeClickMultiplier() * getLevelMultiplier() * getAchievementBonuses().clickMult * getCharacterBonuses().clickMult * getArtifactBonuses().clickMult * (activeEvent?.clickMult || 1);
-  state.res[resKey] = (state.res[resKey] || 0) + power;
-  state.score += power;
+
+  const now = Date.now();
+  if (now - (state.lastClickTs || 0) <= CLICK_STREAK_RESET_MS) {
+    state.clickStreak++;
+  } else {
+    state.clickStreak = 1;
+  }
+  state.lastClickTs = now;
+
+  const streakMult = getClickStreakMultiplier();
+  const crit = Math.random() < getClickCritChance();
+  const finalPower = power * streakMult * (crit ? 2 : 1);
+
+  const prevBurst = state.clickBurstCharge || 0;
+  state.clickBurstCharge = Math.min(CLICK_BURST_THRESHOLD, prevBurst + (crit ? 2 : 1));
+  if (prevBurst < CLICK_BURST_THRESHOLD && state.clickBurstCharge >= CLICK_BURST_THRESHOLD) {
+    notify('⚡ Klick-Burst bereit!', 'success');
+  }
+  state.res[resKey] = (state.res[resKey] || 0) + finalPower;
+  state.score += finalPower * 1.1;
   state.clicks++;
   incrementMission('clicks', 1);
   const prevClicks = state.clicksBySlot[slotIdx] || 0;
@@ -1801,10 +1922,12 @@ function doClick(e, slotIdx = 0) {
   if (e) {
     const btn = (e.target && e.target.closest && e.target.closest('[data-slot]')) || e.currentTarget;
     const rect = btn.getBoundingClientRect();
-    showFloat(rect.left + rect.width / 2, rect.top, `+${fmtFraction(power)} ${RESOURCES[resKey].icon}`);
+    const symbol = crit ? '🔥' : state.clickStreak >= 3 ? '⚡' : '✋';
+    showFloat(rect.left + rect.width / 2, rect.top, `${symbol}+${fmtFraction(finalPower)} ${RESOURCES[resKey].icon}`);
   }
 
   playSound('click');
+  if (crit) playSound('achievement');
   vibrate(50);
 
   // Per-slot click power upgrade on level-up
@@ -1812,9 +1935,10 @@ function doClick(e, slotIdx = 0) {
   if (newLvl > prevLvl) {
     state.clickPowers[slotIdx] = +(state.clickPowers[slotIdx] * 1.2).toFixed(4);
     state.clickPower = state.clickPowers[0]; // keep compat field in sync
+    state.clickCritChance = Math.min(0.30, state.clickCritChance + 0.01);
     renderClickButtons();
     playSound('upgrade');
-    notify(`✨ ${RESOURCES[resKey].name} Klickstärke Lvl ${newLvl}: +${fmtFraction(state.clickPowers[slotIdx])} pro Klick`);
+    notify(`✨ ${RESOURCES[resKey].name} Klickstärke Lvl ${newLvl}: +${fmtFraction(state.clickPowers[slotIdx])} pro Klick, Kritchance +1%`);
   } else {
     // Update only the "toNext" counter in-place without full re-render
     const container = document.getElementById('click-btns-container');
@@ -2338,7 +2462,7 @@ function buyBuilding(id) { buyBuildingN(id, 1); }
 
 function buyBuildingN(id, qty) {
   const bld = BUILDINGS.find(b => b.id === id);
-  if (!bld || bld.unlockAge > state.age) return;
+  if (!bld || bld.unlockAge > state.age || !isBuildingReqMet(bld)) return;
 
   const n = qty === 0 ? getMaxAffordable(bld) : qty;
   if (n === 0) { notify('Not enough resources!', 'error'); return; }
@@ -2427,6 +2551,8 @@ function stateToJson() {
     allTimeScore: state.allTimeScore || 0,
     clicks: state.clicks, clickPower: state.clickPowers[0],
     clickPowers: state.clickPowers, clicksBySlot: state.clicksBySlot,
+    clickCritChance: state.clickCritChance,
+    clickBurstCharge: state.clickBurstCharge,
     achievements: state.achievements,
     weeklyBaseScore: state.weeklyBaseScore, weeklyStartTs: state.weeklyStartTs,
     gatherAge: state.gatherAge,
@@ -2446,6 +2572,9 @@ function loadStateFromJson(json) {
     // Backwards-compat defaults for new fields
     if (!state.clickPowers) state.clickPowers = [state.clickPower || 2, 1, 0.5];
     if (!state.clicksBySlot) state.clicksBySlot = [state.clicks || 0, 0, 0];
+    if (state.clickStreak === undefined) state.clickStreak = 0;
+    if (state.lastClickTs === undefined) state.lastClickTs = 0;
+    if (state.clickCritChance === undefined) state.clickCritChance = 0.08;
     if (!state.achievements) state.achievements = {};
     if (state.weeklyBaseScore === undefined) state.weeklyBaseScore = state.score;
     if (!state.weeklyStartTs) state.weeklyStartTs = null;
@@ -2828,6 +2957,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Click buttons container — touch fires immediately (no 300ms delay)
   const clickContainer = document.getElementById('click-btns-container');
   clickContainer.addEventListener('touchstart', (e) => {
+    const actionBtn = e.target.closest('[data-action]');
+    if (actionBtn && actionBtn.dataset.action === 'burst' && !actionBtn.disabled) {
+      e.preventDefault();
+      activateClickBurst(e);
+      return;
+    }
     const btn = e.target.closest('[data-slot]');
     if (!btn || btn.disabled) return;
     e.preventDefault(); // suppresses the delayed click event that follows
@@ -2836,6 +2971,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mouse fallback for desktop
   clickContainer.addEventListener('click', (e) => {
     if (e._fromTouch) return; // already handled by touchstart
+    const actionBtn = e.target.closest('[data-action]');
+    if (actionBtn && actionBtn.dataset.action === 'burst' && !actionBtn.disabled) {
+      activateClickBurst(e);
+      return;
+    }
     const btn = e.target.closest('[data-slot]');
     if (!btn || btn.disabled) return;
     doClick(e, parseInt(btn.dataset.slot, 10));
